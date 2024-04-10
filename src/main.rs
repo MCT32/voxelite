@@ -111,9 +111,9 @@ fn main() {
         StandardCommandBufferAllocatorCreateInfo::default()
     );
 
-    let vertex1 = MyVertex { position: [-0.5, -0.5] };
-    let vertex2 = MyVertex { position: [ 0.0,  0.5] };
-    let vertex3 = MyVertex { position: [ 0.5, -0.25] };
+    let vertex1 = MyVertex { position: [-0.5, -0.5], color: [1.0, 0.0, 0.0] };
+    let vertex2 = MyVertex { position: [ 0.0,  0.5], color: [0.0, 1.0, 0.0] };
+    let vertex3 = MyVertex { position: [ 0.5, -0.25], color: [0.0, 0.0, 1.0] };
 
     let vertex_buffer = Buffer::from_iter(
         memory_allocator.clone(),
