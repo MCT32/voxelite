@@ -20,21 +20,6 @@ mod util;
 use util::*;
 
 
-mod vs {
-    vulkano_shaders::shader!{
-        ty: "vertex",
-        path: "src/shaders/shader.vert",
-    }
-}
-
-mod fs {
-    vulkano_shaders::shader!{
-        ty: "fragment",
-        path: "src/shaders/shader.frag",
-    }
-}
-
-
 fn main() {
     let event_loop = EventLoop::new();
 
@@ -90,7 +75,7 @@ fn main() {
         .unwrap()[0]
         .0;
 
-    let (mut swapchain, images) = Swapchain::new(
+    let (mut swapchain, mut images) = Swapchain::new(
         device.clone(),
         surface.clone(),
         SwapchainCreateInfo {
@@ -111,9 +96,9 @@ fn main() {
         StandardCommandBufferAllocatorCreateInfo::default()
     );
 
-    let vertex1 = MyVertex { position: [-0.5, -0.5], color: [1.0, 0.0, 0.0] };
-    let vertex2 = MyVertex { position: [ 0.0,  0.5], color: [0.0, 1.0, 0.0] };
-    let vertex3 = MyVertex { position: [ 0.5, -0.25], color: [0.0, 0.0, 1.0] };
+    let vertex1 = MyVertex { position: [-0.5,  0.5], color: [1.0, 0.0, 0.0] };
+    let vertex2 = MyVertex { position: [ 0.0, -0.5], color: [0.0, 1.0, 0.0] };
+    let vertex3 = MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] };
 
     let vertex_buffer = Buffer::from_iter(
         memory_allocator.clone(),
@@ -132,7 +117,7 @@ fn main() {
 
     let render_pass = get_render_pass(device.clone(), &swapchain);
 
-    let framebuffers = get_framebuffers(&images, &render_pass);
+    let mut framebuffers = get_framebuffers(&images, &render_pass);
 
     let vs = vs::load(device.clone()).expect("failed to create shader module");
     let fs = fs::load(device.clone()).expect("failed to create shader module");
@@ -143,20 +128,12 @@ fn main() {
         depth_range: 0.0..=1.0,
     };
 
-    let pipeline = get_pipeline(
+    let (mut pipeline, mut layout) = get_pipeline(
         device.clone(),
         vs.clone(),
         fs.clone(),
         render_pass.clone(),
         viewport.clone(),
-    );
-
-    let mut command_buffers = get_command_buffers(
-        &command_buffer_allocator,
-        &queue,
-        &pipeline,
-        &framebuffers,
-        &vertex_buffer
     );
 
     let mut window_resized = false;
@@ -165,6 +142,18 @@ fn main() {
     let frames_in_flight = images.len();
     let mut fences: Vec<Option<Arc<FenceSignalFuture<_>>>> = vec![None; frames_in_flight];
     let mut previous_fence_i = 0;
+
+    let mut frame = 0;
+
+    let mut command_buffers = get_command_buffers(
+        &command_buffer_allocator,
+        &queue,
+        &layout,
+        &pipeline,
+        &framebuffers,
+        &vertex_buffer,
+        &frame,
+    );
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -186,35 +175,37 @@ fn main() {
 
                     let new_dimentions = window.inner_size();
 
-                    let (new_swapchain, new_images) = swapchain
+                    (swapchain, images) = swapchain
                         .recreate(SwapchainCreateInfo {
                             image_extent: new_dimentions.into(),
                             ..swapchain.create_info()
                         })
                         .expect("failed to recreate swapchain: {e}");
-                    swapchain = new_swapchain;
-                    let new_framebuffers = get_framebuffers(&new_images, &render_pass);
+                    framebuffers = get_framebuffers(&images, &render_pass);
 
                     if window_resized {
                         window_resized = false;
 
                         viewport.extent = new_dimentions.into();
-                        let new_pipeline = get_pipeline(
+                        (pipeline, layout) = get_pipeline(
                             device.clone(),
                             vs.clone(),
                             fs.clone(),
                             render_pass.clone(),
                             viewport.clone()
                         );
-                        command_buffers = get_command_buffers(
-                            &command_buffer_allocator,
-                            &queue,
-                            &new_pipeline,
-                            &new_framebuffers,
-                            &vertex_buffer
-                        );
                     }
                 }
+
+                command_buffers = get_command_buffers(
+                    &command_buffer_allocator,
+                    &queue,
+                    &layout,
+                    &pipeline,
+                    &framebuffers,
+                    &vertex_buffer,
+                    &frame,
+                );
 
                 let (image_i, suboptimal, aquire_future) =
                     match swapchain::acquire_next_image(swapchain.clone(), None)
@@ -269,6 +260,8 @@ fn main() {
                 };
 
                 previous_fence_i = image_i;
+
+                frame = (frame + 1).rem_euclid(100);
             },
             _ => ()
         }
