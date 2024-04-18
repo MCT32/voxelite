@@ -1,19 +1,15 @@
 use std::sync::Arc;
 
 use vulkano::sync::future::FenceSignalFuture;
-use vulkano::{swapchain, Validated, VulkanError, VulkanLibrary};
-use vulkano::instance::{Instance, InstanceCreateInfo};
-use vulkano::device::{Device, DeviceCreateInfo, DeviceExtensions, QueueCreateInfo};
+use vulkano::{swapchain, Validated, VulkanError};
 use vulkano::memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
 use vulkano::sync::{self, GpuFuture};
-use vulkano::image::ImageUsage;
 use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo, SwapchainPresentInfo};
+use vulkano::swapchain::{SwapchainCreateInfo, SwapchainPresentInfo};
 use winit::event_loop::{EventLoop, ControlFlow};
 use winit::event::{Event, WindowEvent};
-use winit::window::WindowBuilder;
 
 
 mod util;
@@ -23,71 +19,13 @@ use util::*;
 fn main() {
     let event_loop = EventLoop::new();
 
-    let library = VulkanLibrary::new().expect("no Vulkan library");
-    let required_extensions = Surface::required_extensions(&event_loop);
-    let instance = Instance::new(
-        library,
-        InstanceCreateInfo {
-            enabled_extensions: required_extensions,
-            ..Default::default()
-        }
-    )
-    .expect("failed to create instance");
+    let instance = create_instance(&event_loop);
 
-    let window = Arc::new(WindowBuilder::new().build(&event_loop).unwrap());
+    let (window, surface) = create_window_and_surface(&event_loop, instance.clone());
+    
+    let (physical_device, device, queue) = setup_device(instance.clone(), surface.clone());
 
-    let surface = Surface::from_window(instance.clone(), window.clone()).unwrap();
-
-    let device_extensions = DeviceExtensions {
-        khr_swapchain: true,
-        ..DeviceExtensions::empty()
-    };
-
-    let (physical_device, queue_family_index) = select_physical_device(
-        &instance,
-        &surface,
-        &device_extensions
-    );
-
-    let (device, mut queues) = Device::new(
-        physical_device.clone(),
-        DeviceCreateInfo {
-            queue_create_infos: vec![QueueCreateInfo {
-                queue_family_index,
-                ..Default::default()
-            }],
-            enabled_extensions: device_extensions,
-            ..Default::default()
-        },
-    )
-    .expect("failed to create device");
-
-    let queue = queues.next().unwrap();
-
-    let caps = physical_device
-        .surface_capabilities(&surface, Default::default())
-        .expect("failed to get surface capabilities");
-
-    let dimensions = window.inner_size();
-    let composite_alpha = caps.supported_composite_alpha.into_iter().next().unwrap();
-    let image_format = physical_device
-        .surface_formats(&surface, Default::default())
-        .unwrap()[0]
-        .0;
-
-    let (mut swapchain, mut images) = Swapchain::new(
-        device.clone(),
-        surface.clone(),
-        SwapchainCreateInfo {
-            min_image_count: caps.min_image_count + 1,
-            image_format,
-            image_extent: dimensions.into(),
-            image_usage: ImageUsage::COLOR_ATTACHMENT,
-            composite_alpha,
-            ..Default::default()
-        },
-    )
-    .unwrap();
+    let (mut swapchain, mut images) = create_swapchain(device.clone(), physical_device.clone(), window.clone(), surface.clone());
 
     let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
 

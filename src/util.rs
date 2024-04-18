@@ -3,9 +3,9 @@ use std::sync::Arc;
 use vulkano::buffer::{BufferContents, Subbuffer};
 use vulkano::command_buffer::allocator::StandardCommandBufferAllocator;
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
-use vulkano::device::{Device, DeviceExtensions, Queue, QueueFlags};
-use vulkano::image::Image;
-use vulkano::instance::Instance;
+use vulkano::device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags};
+use vulkano::image::{Image, ImageUsage};
+use vulkano::instance::{Instance, InstanceCreateInfo};
 use vulkano::pipeline::graphics::color_blend::{ColorBlendAttachmentState, ColorBlendState};
 use vulkano::pipeline::graphics::multisample::MultisampleState;
 use vulkano::pipeline::graphics::rasterization::RasterizationState;
@@ -20,7 +20,10 @@ use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass};
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::{GraphicsPipeline, GraphicsPipelineCreateInfo};
 use vulkano::render_pass::Subpass;
-use vulkano::swapchain::{Surface, Swapchain};
+use vulkano::swapchain::{Surface, Swapchain, SwapchainCreateInfo};
+use vulkano::VulkanLibrary;
+use winit::event_loop::EventLoop;
+use winit::window::{Window, WindowBuilder};
 
 
 #[derive(BufferContents, Vertex)]
@@ -48,9 +51,85 @@ pub mod fs {
 }
 
 
+pub fn create_instance(event_loop: &EventLoop<()>) -> Arc<Instance> {
+    let library = VulkanLibrary::new().expect("no Vulkan library");
+    let required_extensions = Surface::required_extensions(&event_loop);
+    Instance::new(
+        library,
+        InstanceCreateInfo {
+            enabled_extensions: required_extensions,
+            ..Default::default()
+        }
+    )
+    .expect("failed to create instance")
+}
+
+pub fn create_window_and_surface(event_loop: &EventLoop<()>, instance: Arc<Instance>) -> (Arc<Window>, Arc<Surface>) {
+    let window = Arc::new(WindowBuilder::new().build(&event_loop).unwrap());
+    let surface = Surface::from_window(instance.clone(), window.clone()).unwrap();
+
+    (window, surface)
+}
+
+pub fn setup_device(instance: Arc<Instance>, surface: Arc<Surface>) -> (Arc<PhysicalDevice>, Arc<Device>, Arc<Queue>) {
+    let device_extensions = DeviceExtensions {
+        khr_swapchain: true,
+        ..DeviceExtensions::empty()
+    };
+
+    let (physical_device, queue_family_index) = select_physical_device(
+        instance,
+        surface,
+        &device_extensions
+    );
+
+    let (device, mut queues) = Device::new(
+        physical_device.clone(),
+        DeviceCreateInfo {
+            queue_create_infos: vec![QueueCreateInfo {
+                queue_family_index,
+                ..Default::default()
+            }],
+            enabled_extensions: device_extensions,
+            ..Default::default()
+        },
+    )
+    .expect("failed to create device");
+
+    let queue = queues.next().unwrap();
+
+    (physical_device, device, queue)
+}
+
+pub fn create_swapchain(device: Arc<Device>, physical_device: Arc<PhysicalDevice>, window: Arc<Window>, surface: Arc<Surface>) -> (Arc<Swapchain>, Vec<Arc<Image>>) {
+    let caps = physical_device
+        .surface_capabilities(&surface, Default::default())
+        .expect("failed to get surface capabilities");
+
+    let composite_alpha = caps.supported_composite_alpha.into_iter().next().unwrap();
+    let image_format = physical_device
+        .surface_formats(&surface, Default::default())
+        .unwrap()[0]
+        .0;
+    
+    Swapchain::new(
+        device,
+        surface,
+        SwapchainCreateInfo {
+            min_image_count: caps.min_image_count + 1,
+            image_format,
+            image_extent: window.inner_size().into(),
+            image_usage: ImageUsage::COLOR_ATTACHMENT,
+            composite_alpha,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+
 pub fn select_physical_device(
-    instance: &Arc<Instance>,
-    surface: &Arc<Surface>,
+    instance: Arc<Instance>,
+    surface: Arc<Surface>,
     device_extensions: &DeviceExtensions,
 ) -> (Arc<PhysicalDevice>, u32) {
     instance
