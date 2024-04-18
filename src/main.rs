@@ -1,31 +1,38 @@
 use std::sync::Arc;
 
+use types::MyVertex;
 use vulkano::sync::future::FenceSignalFuture;
-use vulkano::{swapchain, Validated, VulkanError};
+use vulkano::{Validated, VulkanError};
 use vulkano::memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
 use vulkano::sync::{self, GpuFuture};
 use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::swapchain::{SwapchainCreateInfo, SwapchainPresentInfo};
+use vulkano::swapchain::{acquire_next_image, SwapchainCreateInfo, SwapchainPresentInfo};
 use winit::event_loop::{EventLoop, ControlFlow};
 use winit::event::{Event, WindowEvent};
 
 
-mod util;
-use util::*;
+mod window;
+mod instance;
+mod device;
+mod swapchain;
+mod pipeline;
+mod command_buffers;
+mod shaders;
+mod types;
 
 
 fn main() {
     let event_loop = EventLoop::new();
 
-    let instance = create_instance(&event_loop);
+    let instance = instance::create_instance(&event_loop);
 
-    let (window, surface) = create_window_and_surface(&event_loop, instance.clone());
+    let (window, surface) = window::create_window_and_surface(&event_loop, instance.clone());
     
-    let (physical_device, device, queue) = setup_device(instance.clone(), surface.clone());
+    let (physical_device, device, queue) = device::setup_device(instance.clone(), surface.clone());
 
-    let (mut swapchain, mut images) = create_swapchain(device.clone(), physical_device.clone(), window.clone(), surface.clone());
+    let (mut swapchain, mut images) = swapchain::create_swapchain(device.clone(), physical_device.clone(), window.clone(), surface.clone());
 
     let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
 
@@ -53,12 +60,11 @@ fn main() {
     )
     .expect("failed to create buffer");
 
-    let render_pass = get_render_pass(device.clone(), &swapchain);
+    let render_pass = swapchain::get_render_pass(device.clone(), &swapchain);
 
-    let mut framebuffers = get_framebuffers(&images, &render_pass);
+    let mut framebuffers = swapchain::get_framebuffers(&images, &render_pass);
 
-    let vs = vs::load(device.clone()).expect("failed to create shader module");
-    let fs = fs::load(device.clone()).expect("failed to create shader module");
+    let (vs, fs) = shaders::load_shaders(device.clone());
 
     let mut viewport = Viewport {
         offset: [0.0, 0.0],
@@ -66,7 +72,7 @@ fn main() {
         depth_range: 0.0..=1.0,
     };
 
-    let (mut pipeline, mut layout) = get_pipeline(
+    let (mut pipeline, mut layout) = pipeline::get_pipeline(
         device.clone(),
         vs.clone(),
         fs.clone(),
@@ -83,7 +89,7 @@ fn main() {
 
     let mut frame = 0;
 
-    let mut command_buffers = get_command_buffers(
+    let mut command_buffers = command_buffers::get_command_buffers(
         &command_buffer_allocator,
         &queue,
         &layout,
@@ -119,13 +125,13 @@ fn main() {
                             ..swapchain.create_info()
                         })
                         .expect("failed to recreate swapchain: {e}");
-                    framebuffers = get_framebuffers(&images, &render_pass);
+                    framebuffers = swapchain::get_framebuffers(&images, &render_pass);
 
                     if window_resized {
                         window_resized = false;
 
                         viewport.extent = new_dimentions.into();
-                        (pipeline, layout) = get_pipeline(
+                        (pipeline, layout) = pipeline::get_pipeline(
                             device.clone(),
                             vs.clone(),
                             fs.clone(),
@@ -135,7 +141,7 @@ fn main() {
                     }
                 }
 
-                command_buffers = get_command_buffers(
+                command_buffers = command_buffers::get_command_buffers(
                     &command_buffer_allocator,
                     &queue,
                     &layout,
@@ -146,7 +152,7 @@ fn main() {
                 );
 
                 let (image_i, suboptimal, aquire_future) =
-                    match swapchain::acquire_next_image(swapchain.clone(), None)
+                    match acquire_next_image(swapchain.clone(), None)
                         .map_err(Validated::unwrap)
                     {
                         Ok(r) => r,
