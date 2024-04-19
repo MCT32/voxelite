@@ -68,7 +68,7 @@ fn main() {
         depth_range: 0.0..=1.0,
     };
 
-    let mut pipeline = pipeline::get_pipeline(
+    let (mut layout, mut pipeline) = pipeline::get_pipeline(
         device.clone(),
         vs.clone(),
         fs.clone(),
@@ -120,7 +120,7 @@ fn main() {
                         window_resized = false;
 
                         viewport.extent = new_dimentions.into();
-                        pipeline = pipeline::get_pipeline(
+                        (layout, pipeline) = pipeline::get_pipeline(
                             device.clone(),
                             vs.clone(),
                             fs.clone(),
@@ -151,7 +151,13 @@ fn main() {
                                     ..Default::default()
                                 },
                             ).unwrap()
-                            .bind_pipeline_graphics(pipeline.clone()).unwrap();
+                            .bind_pipeline_graphics(pipeline.clone()).unwrap()
+                            .push_constants(layout.clone(), 0, shaders::vs::Push {
+                                transform: [[1.0, 0.0],
+                                            [0.0, 1.0]],
+                                offset: [0.0, 0.0].into(),
+                                color: [1.0, 0.0, 1.0],
+                            }).unwrap();
                         
                         let length = model.bind_vertex_buffer(&mut builder, memory_allocator.clone()).unwrap();
                         model.draw(&mut builder, length).unwrap();

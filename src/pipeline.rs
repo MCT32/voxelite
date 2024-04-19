@@ -24,7 +24,7 @@ pub fn get_pipeline(
     fs: Arc<ShaderModule>,
     render_pass: Arc<RenderPass>,
     viewport: Viewport,
-) -> Result<Arc<GraphicsPipeline>> {
+) -> Result<(Arc<PipelineLayout>, Arc<GraphicsPipeline>)> {
     let vs = vs.entry_point("main").unwrap();
     let fs = fs.entry_point("main").unwrap();
 
@@ -44,7 +44,8 @@ pub fn get_pipeline(
 
     let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
-    Ok(
+    Ok((
+        layout.clone(),
         GraphicsPipeline::new(
             device.clone(),
             None,
@@ -66,5 +67,5 @@ pub fn get_pipeline(
                 ..GraphicsPipelineCreateInfo::layout(layout.clone())
             },
         )?
-    )
+    ))
 }
