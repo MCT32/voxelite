@@ -3,8 +3,7 @@ use std::sync::Arc;
 use types::MyVertex;
 use vulkano::sync::future::FenceSignalFuture;
 use vulkano::{Validated, VulkanError};
-use vulkano::memory::allocator::{StandardMemoryAllocator, AllocationCreateInfo, MemoryTypeFilter};
-use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
+use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::command_buffer::allocator::{StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo};
 use vulkano::sync::{self, GpuFuture};
 use vulkano::pipeline::graphics::viewport::Viewport;
@@ -18,7 +17,7 @@ mod instance;
 mod device;
 mod swapchain;
 mod pipeline;
-mod command_buffers;
+mod buffer;
 mod shaders;
 mod types;
 
@@ -41,24 +40,13 @@ fn main() {
         StandardCommandBufferAllocatorCreateInfo::default()
     );
 
-    let vertex1 = MyVertex { position: [-0.5,  0.5], color: [1.0, 0.0, 0.0] };
-    let vertex2 = MyVertex { position: [ 0.0, -0.5], color: [0.0, 1.0, 0.0] };
-    let vertex3 = MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] };
+    let vertices = vec![
+        MyVertex { position: [-0.5,  0.5], color: [1.0, 0.0, 0.0] },
+        MyVertex { position: [ 0.0, -0.5], color: [0.0, 1.0, 0.0] },
+        MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] },
+    ];
 
-    let vertex_buffer = Buffer::from_iter(
-        memory_allocator.clone(),
-        BufferCreateInfo {
-            usage: BufferUsage::VERTEX_BUFFER,
-            ..Default::default()
-        },
-        AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
-                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
-            ..Default::default()
-        },
-        vec![vertex1, vertex2, vertex3],
-    )
-    .expect("failed to create buffer");
+    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), vertices);
 
     let render_pass = swapchain::get_render_pass(device.clone(), &swapchain);
 
@@ -89,7 +77,7 @@ fn main() {
 
     let mut frame = 0;
 
-    let mut command_buffers = command_buffers::get_command_buffers(
+    let mut command_buffers = buffer::get_command_buffers(
         &command_buffer_allocator,
         &queue,
         &layout,
@@ -141,7 +129,7 @@ fn main() {
                     }
                 }
 
-                command_buffers = command_buffers::get_command_buffers(
+                command_buffers = buffer::get_command_buffers(
                     &command_buffer_allocator,
                     &queue,
                     &layout,

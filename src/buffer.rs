@@ -1,8 +1,26 @@
 use std::sync::Arc;
 
-use vulkano::{buffer::Subbuffer, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents, SubpassEndInfo}, device::Queue, pipeline::{GraphicsPipeline, PipelineLayout}, render_pass::Framebuffer};
+use vulkano::{buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer}, command_buffer::{allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents, SubpassEndInfo}, device::Queue, memory::allocator::{AllocationCreateInfo, MemoryAllocator, MemoryTypeFilter}, pipeline::{GraphicsPipeline, PipelineLayout}, render_pass::Framebuffer};
 
 use crate::{shaders, types::MyVertex};
+
+
+pub fn create_vertex_buffer(memory_allocator: Arc<dyn MemoryAllocator>, vertices: Vec<MyVertex>) -> Subbuffer<[MyVertex]> {
+    Buffer::from_iter(
+        memory_allocator,
+        BufferCreateInfo {
+            usage: BufferUsage::VERTEX_BUFFER,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+            ..Default::default()
+        },
+        vertices,
+    )
+    .expect("failed to create buffer")
+}
 
 pub fn get_command_buffers(
     command_buffer_allocator: &StandardCommandBufferAllocator,
