@@ -55,13 +55,7 @@ pub fn get_command_buffers(
                 .bind_pipeline_graphics(pipeline.clone())?
                 .bind_vertex_buffers(0, vertex_buffer.clone())?;
 
-            for i in 0..4 {
-                builder.push_constants(layout.clone(), 0, shaders::vs::PushConstantData {
-                    offset: [-0.5 + *frame as f32 * 0.01, 0.5 - i as f32 / 3.0].into(),
-                    color: [0.0, 0.0, 0.25 + i as f32 / 3.0],
-                })?
-                .draw(vertex_buffer.len() as u32, 1, 0, 0)?;
-            }
+            builder.draw(vertex_buffer.len() as u32, 1, 0, 0)?;
                 
             builder.end_render_pass(SubpassEndInfo::default())?;
 
