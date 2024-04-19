@@ -53,9 +53,6 @@ fn main() {
         MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] },
     ].into();
 
-    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), model.vertices)
-        .expect("could not create vertex buffer");
-
     let render_pass = swapchain::get_render_pass(device.clone(), &swapchain)
         .expect("could not get render pass");
 
@@ -154,10 +151,10 @@ fn main() {
                                     ..Default::default()
                                 },
                             ).unwrap()
-                            .bind_pipeline_graphics(pipeline.clone()).unwrap()
-                            .bind_vertex_buffers(0, vertex_buffer.clone()).unwrap();
-            
-                        builder.draw(vertex_buffer.len() as u32, 1, 0, 0).unwrap();
+                            .bind_pipeline_graphics(pipeline.clone()).unwrap();
+                        
+                        let length = model.bind_vertex_buffer(&mut builder, memory_allocator.clone()).unwrap();
+                        model.draw(&mut builder, length).unwrap();
                             
                         builder.end_render_pass(SubpassEndInfo::default()).unwrap();
             
