@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use vulkano::{device::{physical::{PhysicalDevice, PhysicalDeviceType}, Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags}, instance::Instance, swapchain::Surface};
 
-pub fn setup_device(instance: Arc<Instance>, surface: Arc<Surface>) -> (Arc<PhysicalDevice>, Arc<Device>, Arc<Queue>) {
+pub fn setup_device(instance: Arc<Instance>, surface: Arc<Surface>) -> Result<(Arc<PhysicalDevice>, Arc<Device>, Arc<Queue>)> {
     let device_extensions = DeviceExtensions {
         khr_swapchain: true,
         ..DeviceExtensions::empty()
@@ -12,7 +13,7 @@ pub fn setup_device(instance: Arc<Instance>, surface: Arc<Surface>) -> (Arc<Phys
         instance,
         surface,
         &device_extensions
-    );
+    )?;
 
     let (device, mut queues) = Device::new(
         physical_device.clone(),
@@ -24,22 +25,20 @@ pub fn setup_device(instance: Arc<Instance>, surface: Arc<Surface>) -> (Arc<Phys
             enabled_extensions: device_extensions,
             ..Default::default()
         },
-    )
-    .expect("failed to create device");
+    )?;
 
     let queue = queues.next().unwrap();
 
-    (physical_device, device, queue)
+    Ok((physical_device, device, queue))
 }
 
 pub fn select_physical_device(
     instance: Arc<Instance>,
     surface: Arc<Surface>,
     device_extensions: &DeviceExtensions,
-) -> (Arc<PhysicalDevice>, u32) {
-    instance
-        .enumerate_physical_devices()
-        .expect("could not enumerate devices")
+) -> Result<(Arc<PhysicalDevice>, u32)> {
+    Ok(instance
+        .enumerate_physical_devices()?
         .filter(|p| p.supported_extensions().contains(&device_extensions))
         .filter_map(|p| {
             p.queue_family_properties()
@@ -65,5 +64,5 @@ pub fn select_physical_device(
             // match wildcard `_` to catch all unknown device types.
             _ => 4,
         })
-        .expect("no device available")
+        .expect("no device available"))
 }

@@ -1,20 +1,19 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use vulkano::{device::{physical::PhysicalDevice, Device}, image::{view::ImageView, Image, ImageUsage}, render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass}, swapchain::{Surface, Swapchain, SwapchainCreateInfo}};
 use winit::window::Window;
 
-pub fn create_swapchain(device: Arc<Device>, physical_device: Arc<PhysicalDevice>, window: Arc<Window>, surface: Arc<Surface>) -> (Arc<Swapchain>, Vec<Arc<Image>>) {
+pub fn create_swapchain(device: Arc<Device>, physical_device: Arc<PhysicalDevice>, window: Arc<Window>, surface: Arc<Surface>) -> Result<(Arc<Swapchain>, Vec<Arc<Image>>)> {
     let caps = physical_device
-        .surface_capabilities(&surface, Default::default())
-        .expect("failed to get surface capabilities");
+        .surface_capabilities(&surface, Default::default())?;
 
     let composite_alpha = caps.supported_composite_alpha.into_iter().next().unwrap();
     let image_format = physical_device
-        .surface_formats(&surface, Default::default())
-        .unwrap()[0]
+        .surface_formats(&surface, Default::default())?[0]
         .0;
     
-    Swapchain::new(
+    Ok(Swapchain::new(
         device,
         surface,
         SwapchainCreateInfo {
@@ -25,13 +24,12 @@ pub fn create_swapchain(device: Arc<Device>, physical_device: Arc<PhysicalDevice
             composite_alpha,
             ..Default::default()
         },
-    )
-    .unwrap()
+    )?)
 }
 
 
-pub fn get_render_pass(device: Arc<Device>, swapchain: &Arc<Swapchain>) -> Arc<RenderPass> {
-    vulkano::single_pass_renderpass!(
+pub fn get_render_pass(device: Arc<Device>, swapchain: &Arc<Swapchain>) -> Result<Arc<RenderPass>> {
+    Ok(vulkano::single_pass_renderpass!(
         device,
         attachments: {
             color: {
@@ -46,27 +44,26 @@ pub fn get_render_pass(device: Arc<Device>, swapchain: &Arc<Swapchain>) -> Arc<R
             color: [color],
             depth_stencil: {},
         },
-    )
-    .unwrap()
+    )?)
 }
 
 
 pub fn get_framebuffers(
     images: &[Arc<Image>],
     render_pass: &Arc<RenderPass>,
-) -> Vec<Arc<Framebuffer>> {
+) -> Result<Vec<Arc<Framebuffer>>> {
     images
         .iter()
         .map(|image| {
-            let view = ImageView::new_default(image.clone()).unwrap();
-            Framebuffer::new(
+            let view = ImageView::new_default(image.clone())?;
+
+            Ok(Framebuffer::new(
                 render_pass.clone(),
                 FramebufferCreateInfo {
                     attachments: vec![view],
                     ..Default::default()
                 },
-            )
-            .unwrap()
+            )?)
         })
-        .collect::<Vec<_>>()
+        .collect::<Result<Vec<_>>>()
 }

@@ -25,13 +25,17 @@ mod types;
 fn main() {
     let event_loop = EventLoop::new();
 
-    let instance = instance::create_instance(&event_loop);
+    let instance = instance::create_instance(&event_loop)
+        .expect("could not create instance");
 
-    let (window, surface) = window::create_window_and_surface(&event_loop, instance.clone());
+    let (window, surface) = window::create_window_and_surface(&event_loop, instance.clone())
+        .expect("could not create window or surface");
     
-    let (physical_device, device, queue) = device::setup_device(instance.clone(), surface.clone());
+    let (physical_device, device, queue) = device::setup_device(instance.clone(), surface.clone())
+        .expect("could not set up device");
 
-    let (mut swapchain, mut images) = swapchain::create_swapchain(device.clone(), physical_device.clone(), window.clone(), surface.clone());
+    let (mut swapchain, mut images) = swapchain::create_swapchain(device.clone(), physical_device.clone(), window.clone(), surface.clone())
+        .expect("could not create swapchain");
 
     let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
 
@@ -46,13 +50,17 @@ fn main() {
         MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] },
     ];
 
-    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), vertices);
+    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), vertices)
+        .expect("could not create vertex buffer");
 
-    let render_pass = swapchain::get_render_pass(device.clone(), &swapchain);
+    let render_pass = swapchain::get_render_pass(device.clone(), &swapchain)
+        .expect("could not get render pass");
 
-    let mut framebuffers = swapchain::get_framebuffers(&images, &render_pass);
+    let mut framebuffers = swapchain::get_framebuffers(&images, &render_pass)
+        .expect("could not get framebuffers");
 
-    let (vs, fs) = shaders::load_shaders(device.clone());
+    let (vs, fs) = shaders::load_shaders(device.clone())
+        .expect("could not load shaders");
 
     let mut viewport = Viewport {
         offset: [0.0, 0.0],
@@ -66,7 +74,7 @@ fn main() {
         fs.clone(),
         render_pass.clone(),
         viewport.clone(),
-    );
+    ).expect("could not get pipeline");
 
     let mut window_resized = false;
     let mut recreate_swapchain = false;
@@ -85,7 +93,7 @@ fn main() {
         &framebuffers,
         &vertex_buffer,
         &frame,
-    );
+    ).expect("could not get command buffers");
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -113,7 +121,8 @@ fn main() {
                             ..swapchain.create_info()
                         })
                         .expect("failed to recreate swapchain: {e}");
-                    framebuffers = swapchain::get_framebuffers(&images, &render_pass);
+                    framebuffers = swapchain::get_framebuffers(&images, &render_pass)
+                        .expect("could not get framebuffers");
 
                     if window_resized {
                         window_resized = false;
@@ -125,7 +134,7 @@ fn main() {
                             fs.clone(),
                             render_pass.clone(),
                             viewport.clone()
-                        );
+                        ).expect("could not get pipeline");
                     }
                 }
 
@@ -137,7 +146,7 @@ fn main() {
                     &framebuffers,
                     &vertex_buffer,
                     &frame,
-                );
+                ).expect("could not get command buffers");
 
                 let (image_i, suboptimal, aquire_future) =
                     match acquire_next_image(swapchain.clone(), None)

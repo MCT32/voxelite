@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use vulkano::{device::Device, shader::ShaderModule};
 
 pub mod vs {
@@ -17,9 +18,9 @@ pub mod fs {
 }
 
 
-pub fn load_shaders(device: Arc<Device>) -> (Arc<ShaderModule>, Arc<ShaderModule>) {
-    (
-        vs::load(device.clone()).expect("failed to create shader module"),
-        fs::load(device).expect("failed to create shader module"),
-    )
+pub fn load_shaders(device: Arc<Device>) -> Result<(Arc<ShaderModule>, Arc<ShaderModule>)> {
+    Ok((
+        vs::load(device.clone())?,
+        fs::load(device)?,
+    ))
 }

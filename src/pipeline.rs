@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Result;
 use vulkano::device::Device;
 use vulkano::pipeline::graphics::color_blend::{ColorBlendAttachmentState, ColorBlendState};
 use vulkano::pipeline::graphics::multisample::MultisampleState;
@@ -23,13 +24,12 @@ pub fn get_pipeline(
     fs: Arc<ShaderModule>,
     render_pass: Arc<RenderPass>,
     viewport: Viewport,
-) -> (Arc<GraphicsPipeline>, Arc<PipelineLayout>) {
+) -> Result<(Arc<GraphicsPipeline>, Arc<PipelineLayout>)> {
     let vs = vs.entry_point("main").unwrap();
     let fs = fs.entry_point("main").unwrap();
 
     let vertex_input_state = MyVertex::per_vertex()
-        .definition(&vs.info().input_interface)
-        .unwrap();
+        .definition(&vs.info().input_interface)?;
 
     let stages = [
         PipelineShaderStageCreateInfo::new(vs),
@@ -39,14 +39,12 @@ pub fn get_pipeline(
     let layout = PipelineLayout::new(
         device.clone(),
         PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
-            .into_pipeline_layout_create_info(device.clone())
-            .unwrap(),
-    )
-    .unwrap();
+            .into_pipeline_layout_create_info(device.clone())?,
+    )?;
 
     let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
 
-    (
+    Ok((
         GraphicsPipeline::new(
             device.clone(),
             None,
@@ -67,9 +65,7 @@ pub fn get_pipeline(
                 subpass: Some(subpass.into()),
                 ..GraphicsPipelineCreateInfo::layout(layout.clone())
             },
-        )
-        .unwrap(),
+        )?,
         layout
-    )
-
+    ))
 }
