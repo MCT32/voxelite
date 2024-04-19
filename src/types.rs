@@ -8,3 +8,13 @@ pub struct MyVertex {
     #[format(R32G32B32_SFLOAT)]
     pub color: [f32; 3],
 }
+
+pub struct Model {
+    pub vertices: Vec<MyVertex>,
+}
+
+impl From<Vec<MyVertex>> for Model {
+    fn from(value: Vec<MyVertex>) -> Self {
+        Self { vertices: value }
+    }
+}

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use types::MyVertex;
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassBeginInfo, SubpassContents, SubpassEndInfo};
 use vulkano::sync::future::FenceSignalFuture;
 use vulkano::{Validated, VulkanError};
 use vulkano::memory::allocator::StandardMemoryAllocator;
@@ -10,6 +11,8 @@ use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::swapchain::{acquire_next_image, SwapchainCreateInfo, SwapchainPresentInfo};
 use winit::event_loop::{EventLoop, ControlFlow};
 use winit::event::{Event, WindowEvent};
+
+use crate::types::Model;
 
 
 mod window;
@@ -44,13 +47,13 @@ fn main() {
         StandardCommandBufferAllocatorCreateInfo::default()
     );
 
-    let vertices = vec![
+    let model: Model = vec![
         MyVertex { position: [-0.5,  0.5], color: [1.0, 0.0, 0.0] },
         MyVertex { position: [ 0.0, -0.5], color: [0.0, 1.0, 0.0] },
         MyVertex { position: [ 0.5,  0.5], color: [0.0, 0.0, 1.0] },
-    ];
+    ].into();
 
-    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), vertices)
+    let vertex_buffer = buffer::create_vertex_buffer(memory_allocator.clone(), model.vertices)
         .expect("could not create vertex buffer");
 
     let render_pass = swapchain::get_render_pass(device.clone(), &swapchain)
@@ -68,7 +71,7 @@ fn main() {
         depth_range: 0.0..=1.0,
     };
 
-    let (mut pipeline, mut layout) = pipeline::get_pipeline(
+    let mut pipeline = pipeline::get_pipeline(
         device.clone(),
         vs.clone(),
         fs.clone(),
@@ -83,17 +86,9 @@ fn main() {
     let mut fences: Vec<Option<Arc<FenceSignalFuture<_>>>> = vec![None; frames_in_flight];
     let mut previous_fence_i = 0;
 
-    let mut frame = 0;
+    let mut frame: u32 = 0;
 
-    let mut command_buffers = buffer::get_command_buffers(
-        &command_buffer_allocator,
-        &queue,
-        &layout,
-        &pipeline,
-        &framebuffers,
-        &vertex_buffer,
-        &frame,
-    ).expect("could not get command buffers");
+    let mut command_buffers: Option<Vec<Arc<PrimaryAutoCommandBuffer>>> = None;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -128,7 +123,7 @@ fn main() {
                         window_resized = false;
 
                         viewport.extent = new_dimentions.into();
-                        (pipeline, layout) = pipeline::get_pipeline(
+                        pipeline = pipeline::get_pipeline(
                             device.clone(),
                             vs.clone(),
                             fs.clone(),
@@ -138,15 +133,37 @@ fn main() {
                     }
                 }
 
-                command_buffers = buffer::get_command_buffers(
-                    &command_buffer_allocator,
-                    &queue,
-                    &layout,
-                    &pipeline,
-                    &framebuffers,
-                    &vertex_buffer,
-                    &frame,
-                ).expect("could not get command buffers");
+                command_buffers = Some(framebuffers
+                    .iter()
+                    .map(|framebuffer| {
+                        let mut builder = AutoCommandBufferBuilder::primary(
+                            &command_buffer_allocator,
+                            queue.queue_family_index(),
+                            // Don't forget to write the correct buffer usage.
+                            CommandBufferUsage::MultipleSubmit,
+                        ).unwrap();
+            
+                        builder
+                            .begin_render_pass(
+                                RenderPassBeginInfo {
+                                    clear_values: vec![Some([0.1, 0.1, 0.1, 1.0].into())],
+                                    ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
+                                },
+                                SubpassBeginInfo {
+                                    contents: SubpassContents::Inline,
+                                    ..Default::default()
+                                },
+                            ).unwrap()
+                            .bind_pipeline_graphics(pipeline.clone()).unwrap()
+                            .bind_vertex_buffers(0, vertex_buffer.clone()).unwrap();
+            
+                        builder.draw(vertex_buffer.len() as u32, 1, 0, 0).unwrap();
+                            
+                        builder.end_render_pass(SubpassEndInfo::default()).unwrap();
+            
+                        builder.build().unwrap()
+                    })
+                    .collect());
 
                 let (image_i, suboptimal, aquire_future) =
                     match acquire_next_image(swapchain.clone(), None)
@@ -180,7 +197,7 @@ fn main() {
 
                 let future = previous_future
                     .join(aquire_future)
-                    .then_execute(queue.clone(), command_buffers[image_i as usize].clone())
+                    .then_execute(queue.clone(), command_buffers.as_mut().unwrap()[image_i as usize].clone())
                     .unwrap()
                     .then_swapchain_present(
                         queue.clone(),
